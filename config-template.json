@@ -1,0 +1,12 @@
+{
+  "YOUTUBE_API_KEY": "YOUR_ACTUAL_YOUTUBE_API_KEY_HERE",
+  "channel_id": "YOUR_YOUTUBE_CHANNEL_ID_HERE",
+  "server": "your-ftp-server.com",
+  "name": "your_ftp_username",
+  "password": "your_ftp_password",
+  "website_url": "https://your-website.com",
+  "threshold_db": -12,
+  "ratio": 2,
+  "attack": 200,
+  "release": 1000
+}
