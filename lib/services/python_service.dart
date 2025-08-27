@@ -84,7 +84,7 @@ class PythonService {
       }
       print(response.data);
       print(response.statusCode);
-      throw Exception('Failed to load server files');
+      throw Exception('Failed to load server files: ${response.statusCode}, ${response.data}');
     } catch (e) {
       rethrow;
     }

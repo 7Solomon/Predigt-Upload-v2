@@ -5,6 +5,20 @@ REM Get the directory where this script is located
 set "APP_DIR=%~dp0"
 set "BACKEND_DIR=%APP_DIR%backend"
 
+echo DEBUG: App directory: %APP_DIR%
+echo DEBUG: Backend directory: %BACKEND_DIR%
+echo DEBUG: Checking if venv exists...
+
+if exist "%BACKEND_DIR%\venv\Scripts\uvicorn.exe" (
+    echo DEBUG: Virtual environment found
+) else (
+    echo DEBUG: Virtual environment NOT found
+    echo DEBUG: Running setup script again...
+    REM Set environment variable to prevent pause
+    set "AUTOMATED_INSTALL=1"
+    powershell.exe -ExecutionPolicy Bypass -Command "$env:AUTOMATED_INSTALL='1'; & '%APP_DIR%\setup_backend.ps1'"
+)
+
 REM Start the backend
 echo Starting backend server...
 powershell.exe -ExecutionPolicy Bypass -File "%BACKEND_DIR%\run_backend.ps1"

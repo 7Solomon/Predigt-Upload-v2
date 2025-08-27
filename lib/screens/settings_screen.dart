@@ -31,6 +31,10 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   
   bool _isLoading = false;
   Map<String, bool> _connectionStatus = {};
+  
+  // Add visibility state variables for password fields
+  bool _youtubeApiKeyVisible = false;
+  bool _ftpPasswordVisible = false;
 
   @override
   void initState() {
@@ -157,6 +161,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                   'YouTube API Key',
                   _youtubeApiKeyController,
                   obscureText: true,
+                  fieldKey: 'youtube_api', // Add this
                   validator: (value) => value?.isEmpty == true ? 'API Key erforderlich' : null,
                 ),
                 _buildTextField(
@@ -188,6 +193,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                   'Passwort',
                   _ftpPasswordController,
                   obscureText: true,
+                  fieldKey: 'ftp_password', // Add this
                   validator: (value) => value?.isEmpty == true ? 'Passwort erforderlich' : null,
                 ),
               ],
@@ -332,23 +338,45 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     TextEditingController controller, {
     bool obscureText = false,
     String? Function(String?)? validator,
+    String? fieldKey, // Add this to identify which field
   }) {
+    // Determine if this specific field should be obscured
+    bool isObscured = obscureText;
+    if (fieldKey != null) {
+      switch (fieldKey) {
+        case 'youtube_api':
+          isObscured = obscureText && !_youtubeApiKeyVisible;
+          break;
+        case 'ftp_password':
+          isObscured = obscureText && !_ftpPasswordVisible;
+          break;
+      }
+    }
+
     return Padding(
       padding: EdgeInsets.only(bottom: 16),
       child: TextFormField(
         controller: controller,
-        obscureText: obscureText,
+        obscureText: isObscured,
         validator: validator,
         decoration: InputDecoration(
           labelText: label,
           border: OutlineInputBorder(),
           suffixIcon: obscureText
               ? IconButton(
-                  icon: Icon(Icons.visibility),
+                  icon: Icon(
+                    isObscured ? Icons.visibility : Icons.visibility_off,
+                  ),
                   onPressed: () {
-                    // Toggle password visibility
                     setState(() {
-                      // This would need a separate state variable for each password field
+                      switch (fieldKey) {
+                        case 'youtube_api':
+                          _youtubeApiKeyVisible = !_youtubeApiKeyVisible;
+                          break;
+                        case 'ftp_password':
+                          _ftpPasswordVisible = !_ftpPasswordVisible;
+                          break;
+                      }
                     });
                   },
                 )

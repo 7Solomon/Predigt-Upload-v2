@@ -162,7 +162,6 @@ class UploadProgress {
     finalPath: json['final_path'],
   );
   static ProcessingStep _parseStep(String? value) {
-    print(value);
     return ProcessingStep.values.firstWhere(
       (e) => e.name == value,
       orElse: () => ProcessingStep.download,
