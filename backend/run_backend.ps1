@@ -1,8 +1,6 @@
-# This script runs the FastAPI backend server using the virtual environment
-# in the background and is designed for development.
-
+# This script runs the FastAPI backend server using the venv
 $BackendDir = $PSScriptRoot
-$LogFile = Join-Path $BackendDir "backend.log"
+$LogFile = Join-Path (Join-Path $BackendDir "log") "backend.log"
 $Port = 8000
 
 # Check if a process is already using the port

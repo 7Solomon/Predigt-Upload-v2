@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:predigt_upload_v2/providers/app_state.dart';
 import 'package:predigt_upload_v2/screens/overview_screen.dart';
+import 'package:predigt_upload_v2/screens/settings_screen.dart';
 import 'config_screen.dart';
 import 'livestream_selection_screen.dart';
 
@@ -31,11 +32,21 @@ class MainScreen extends ConsumerWidget {
           body: PageView(
             controller: _controller,
             physics: const NeverScrollableScrollPhysics(),
-            children: const [
+            children: [
               LivestreamSelectionScreen(),
               OverviewScreen(),
             ],
           ),
+          floatingActionButton: FloatingActionButton(
+          onPressed: () {
+          Navigator.of(context).push(
+            MaterialPageRoute(
+              builder: (context) => const SettingsScreen(),
+            ),
+          );
+        },
+        child: const Icon(Icons.settings),
+      ),
           bottomNavigationBar: NavigationBar(
             selectedIndex: _index,
             onDestinationSelected: (i) {

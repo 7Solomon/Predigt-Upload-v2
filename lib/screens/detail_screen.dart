@@ -16,13 +16,56 @@ class DetailScreen extends ConsumerStatefulWidget {
 class _DetailScreenState extends ConsumerState<DetailScreen> {
   final _formKey = GlobalKey<FormState>();
   final _titelController = TextEditingController();
-  String _selectedPrediger = 'Philipp Hönes';
+  // Use a controller for the preacher field to allow typing
+  final _predigerController = TextEditingController();
+  // This list will hold the suggestions for the Autocomplete field
+  final List<String> _predigerList = ['Philipp Hönes'];
   DateTime _selectedDate = DateTime.now();
+
+
+    
+  
+  @override
+  void initState() {
+    super.initState();
+    _initializeFormFields();
+  }
+
+  void _initializeFormFields() {
+    final parts = widget.livestream.title.split('|');
+    if (parts.isNotEmpty) {
+      print(parts[0]);
+      _titelController.text = parts[0].trim();
+    }
+    if (parts.length >= 2) {
+      final preacherName = parts[1].trim();
+      if (!_predigerList.contains(preacherName)) {
+        _predigerList.add(preacherName);
+      }
+      _predigerController.text = preacherName;
+      print(preacherName);
+    }
+    if (parts.length >= 3) {
+      try {
+        final dateString = parts[2].trim();
+        final regExp = RegExp(r'(\d{1,2})\.(\d{1,2})\.(\d{2,4})');
+        final match = regExp.firstMatch(dateString);
+
+        if (match != null) {
+          final day = int.parse(match.group(1)!);
+          final month = int.parse(match.group(2)!);
+          final year = int.parse(match.group(3)!);
+          _selectedDate = DateTime(year < 100 ? year + 2000 : year, month, day);
+        }
+      } catch (e) {
+        print('Error parsing date from title: $e');
+      }
+    }
+  }
   
   @override
   Widget build(BuildContext context) {
-  // Placeholder: list of themes
-  final themes = AsyncValue.data(<String>["Gnade", "Glaube", "Hoffnung"]);
+  final themes = AsyncValue.data(<String>[]);
     
     return Scaffold(
       appBar: AppBar(
@@ -63,18 +106,31 @@ class _DetailScreenState extends ConsumerState<DetailScreen> {
               
               // Predigt Titel
               themes.when(
-                data: (themesList) => DropdownButtonFormField<String>(
-                  value: _titelController.text.isEmpty ? null : _titelController.text,
-                  decoration: const InputDecoration(
-                    labelText: 'Predigt Titel',
-                    border: OutlineInputBorder(),
-                  ),
-                  items: themesList.map((theme) => DropdownMenuItem(
-                    value: theme,
-                    child: Text(theme),
-                  )).toList(),
-                  onChanged: (value) => _titelController.text = value ?? '',
-                  validator: (value) => value?.isEmpty == true ? 'Bitte Titel eingeben' : null,
+                data: (themesList) => Autocomplete<String>(
+                  initialValue: TextEditingValue(text: _titelController.text),
+                  optionsBuilder: (TextEditingValue textEditingValue) {
+                    if (textEditingValue.text.isEmpty) {
+                      return const Iterable<String>.empty();
+                    }
+                    return themesList.where((String option) {
+                      return option.toLowerCase().contains(textEditingValue.text.toLowerCase());
+                    });
+                  },
+                  onSelected: (String selection) {
+                    _titelController.text = selection;
+                  },
+                  fieldViewBuilder: (context, textEditingController, focusNode, onFieldSubmitted) {
+                    _titelController.value = textEditingController.value;
+                    return TextFormField(
+                      controller: textEditingController,
+                      focusNode: focusNode,
+                      decoration: const InputDecoration(
+                        labelText: 'Predigt Titel',
+                        border: OutlineInputBorder(),
+                      ),
+                      validator: (value) => value?.isEmpty == true ? 'Bitte Titel eingeben' : null,
+                    );
+                  },
                 ),
                 loading: () => const LinearProgressIndicator(),
                 error: (_, __) => TextFormField(
@@ -83,20 +139,41 @@ class _DetailScreenState extends ConsumerState<DetailScreen> {
                     labelText: 'Predigt Titel',
                     border: OutlineInputBorder(),
                   ),
+                  validator: (value) => value?.isEmpty == true ? 'Bitte Titel eingeben' : null,
                 ),
               ),
+
+              
               
               const SizedBox(height: 16),
               
-              // Prediger Auswahl
-              DropdownButtonFormField<String>(
-                value: _selectedPrediger,
-                items: const [
-                  DropdownMenuItem(value: 'Philipp Hönes', child: Text('Philipp Hönes')),
-                  // DropdownMenuItem(value: 'Max Mustermann', child: Text('Max Mustermann')),
-                ],
-                onChanged: (v) => setState(() => _selectedPrediger = v ?? _selectedPrediger),
-                decoration: const InputDecoration(border: OutlineInputBorder(), labelText: 'Prediger'),
+              // Prediger Auswahl with Autocomplete
+              Autocomplete<String>(
+                initialValue: TextEditingValue(text: _predigerController.text),
+                optionsBuilder: (TextEditingValue textEditingValue) {
+                  if (textEditingValue.text == '') {
+                    return const Iterable<String>.empty();
+                  }
+                  return _predigerList.where((String option) {
+                    return option.toLowerCase().contains(textEditingValue.text.toLowerCase());
+                  });
+                },
+                onSelected: (String selection) {
+                  _predigerController.text = selection;
+                },
+                fieldViewBuilder: (context, textEditingController, focusNode, onFieldSubmitted) {
+                  // Sync our controller when the user types
+                  _predigerController.value = textEditingController.value;
+                  return TextFormField(
+                    controller: textEditingController,
+                    focusNode: focusNode,
+                    decoration: const InputDecoration(
+                      labelText: 'Prediger',
+                      border: OutlineInputBorder(),
+                    ),
+                    validator: (value) => value?.isEmpty == true ? 'Bitte Prediger eingeben' : null,
+                  );
+                },
               ),
               
               const SizedBox(height: 16),
@@ -118,15 +195,21 @@ class _DetailScreenState extends ConsumerState<DetailScreen> {
     );
   }
   
+  @override
+  void dispose() {
+    _titelController.dispose();
+    _predigerController.dispose();
+    super.dispose();
+  }
+
   Future<void> _processAudio() async {
     if (!_formKey.currentState!.validate()) return;
     
-    // Navigate to Processing Screen with parameters
     Navigator.of(context).push(
       MaterialPageRoute(
         builder: (context) => ProcessingScreen(
           livestream: widget.livestream,
-          prediger: _selectedPrediger,
+          prediger: _predigerController.text,
           titel: _titelController.text,
           datum: _selectedDate,
         ),

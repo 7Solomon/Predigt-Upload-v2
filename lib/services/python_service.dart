@@ -1,11 +1,14 @@
 import 'dart:async';
 import 'dart:convert';
+import 'package:predigt_upload_v2/services/processed_file_service.dart';
+
 import '../models/models.dart';
 import 'package:dio/dio.dart';
 
 class PythonService {
   static const String baseUrl = 'http://localhost:8000';
   final Dio _dio = Dio();
+  final ProcessedFilesService _processedFilesService = ProcessedFilesService();
 
   Future<List<Livestream>> getLastLivestreams(int limit) async {
     print('get last live');
@@ -24,32 +27,92 @@ class PythonService {
 
   Stream<UploadProgress> processAudio(ProcessingRequest request) async* {
     try {
+      final requestData = request.toJson();
+      print('Sending request data: $requestData');
+      
       final response = await _dio.post(
         '$baseUrl/audio/process',
-        data: request.toJson(),
+        data: requestData,
         options: Options(responseType: ResponseType.stream),
       );
+      
       final stream = response.data.stream
+          .cast<List<int>>()
           .transform(utf8.decoder)
           .transform(const LineSplitter());
+          
       await for (final line in stream) {
+      
         if (line.trim().isEmpty) continue;
-        final data = jsonDecode(line);
-        yield UploadProgress.fromJson(data);
+        //print('Received line: $line');
+        try {
+
+          final data = jsonDecode(line);
+          final progress = UploadProgress.fromJson(data);
+          //print('progress: $progress');
+          //print('final_path: ${data['final_path']}');
+          // Check if processing is complete and add to processed files
+          if (progress.step == ProcessingStep.complete && data['final_path'] != null) {
+            _processedFilesService.addProcessedFile(data['final_path']);
+          }
+          
+          yield progress;
+        } catch (e) {
+          print('Error parsing JSON line: $e');
+          // Skip malformed lines
+        }
       }
     } catch (e) {
-      // Emit simulated progression if backend unreachable
-      final simulated = [
-        (ProcessingStep.download, 20.0, 'Download abgeschlossen'),
-        (ProcessingStep.compress, 60.0, 'Komprimierung abgeschlossen'),
-        (ProcessingStep.tags, 80.0, 'Tags gesetzt'),
-        (ProcessingStep.finalize, 90.0, 'Finalisierung...'),
-        (ProcessingStep.complete, 100.0, 'Abgeschlossen'),
-      ];
-      for (final s in simulated) {
-        await Future.delayed(const Duration(milliseconds: 400));
-        yield UploadProgress(step: s.$1, progress: s.$2, message: s.$3);
+      //print('Error in processAudio: $e');
+      if (e is DioException) {
+        print('Dio error response: ${e.response?.data}');
       }
+      yield UploadProgress(
+        step: ProcessingStep.error,
+        progress: 0,
+        message: 'Fehler: ${e.toString()}',
+      );
+    }
+  }
+
+  Future<List<String>> getServerFiles() async {
+    try {
+      final response = await _dio.get('$baseUrl/server/files');
+      if (response.statusCode == 200 && response.data['status'] == 'success') {
+        print('Server files retrieved successfully: ${response.data['files']}');
+        return List<String>.from(response.data['files']);
+      }
+      print(response.data);
+      print(response.statusCode);
+      throw Exception('Failed to load server files');
+    } catch (e) {
+      rethrow;
+    }
+  }
+
+  Future<bool> uploadFile(String filePath) async {
+    try {
+      final response = await _dio.post('$baseUrl/server/upload', data: {
+        'file_path': filePath,
+      });
+      return response.statusCode == 200 && response.data['status'] == 'success';
+    } catch (e) {
+      print('Error uploading file: $e');
+      return false;
+    }
+  }
+
+  Future<bool> checkFileOnServer(String filePath) async {
+    try {
+      final response = await _dio.post('$baseUrl/server/check-file', data: {
+        'file_path': filePath,
+      });
+      return response.statusCode == 200 && 
+             response.data['status'] == 'success' && 
+             response.data['file_exists'] == true;
+    } catch (e) {
+      print('Error checking file on server: $e');
+      return false;
     }
   }
 }

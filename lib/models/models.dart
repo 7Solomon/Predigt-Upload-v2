@@ -106,7 +106,7 @@ class Livestream {
   final String id;
   final String title;
   final String url;
-  final int length; // milliseconds
+  final int length;
   const Livestream({required this.id, required this.title, required this.url, required this.length});
   factory Livestream.fromJson(Map<String, dynamic> json) => Livestream(
     id: json['id'] ?? '',
@@ -122,7 +122,7 @@ class Livestream {
   };
 }
 
-enum ProcessingStep { download, compress, tags, finalize, complete }
+enum ProcessingStep { download, compress, tags, finalize, complete, error }
 
 extension ProcessingStepX on ProcessingStep {
   String get displayName => switch (this) {
@@ -131,20 +131,21 @@ extension ProcessingStepX on ProcessingStep {
     ProcessingStep.tags => 'Tags setzen',
     ProcessingStep.finalize => 'Finalisieren',
     ProcessingStep.complete => 'Abgeschlossen',
+    ProcessingStep.error => 'Fehler',
   };
 }
 
 class ProcessingRequest {
-  final String url;
+  final String id;
   final String prediger;
   final String titel;
   final DateTime datum;
-  ProcessingRequest({required this.url, required this.prediger, required this.titel, required this.datum});
+  ProcessingRequest({required this.id, required this.prediger, required this.titel, required this.datum});
   Map<String, dynamic> toJson() => {
-    'url': url,
+    'id': id,
     'prediger': prediger,
     'titel': titel,
-    'datum': datum.toIso8601String(),
+    'datum': "${datum.year.toString().padLeft(4, '0')}-${datum.month.toString().padLeft(2, '0')}-${datum.day.toString().padLeft(2, '0')}",
   };
 }
 
@@ -156,14 +157,66 @@ class UploadProgress {
   UploadProgress({required this.step, required this.progress, required this.message, this.finalPath});
   factory UploadProgress.fromJson(Map<String, dynamic> json) => UploadProgress(
     step: _parseStep(json['step']),
-    progress: (json['progress'] ?? 0).toDouble(),
+    progress: double.tryParse(json['progress']) ?? 0.0,
     message: json['message'] ?? '',
     finalPath: json['final_path'],
   );
   static ProcessingStep _parseStep(String? value) {
+    print(value);
     return ProcessingStep.values.firstWhere(
       (e) => e.name == value,
       orElse: () => ProcessingStep.download,
     );
   }
+}
+
+class LocalFile {
+  final String name;
+  final String path;
+  final DateTime createdAt;
+  final bool isUploaded;
+
+  LocalFile({
+    required this.name,
+    required this.path,
+    required this.createdAt,
+    this.isUploaded = false,
+  });
+
+  factory LocalFile.fromJson(Map<String, dynamic> json) {
+    return LocalFile(
+      name: json['name'],
+      path: json['path'],
+      createdAt: DateTime.parse(json['createdAt']),
+      isUploaded: json['isUploaded'] ?? false,
+    );
+  }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'name': name,
+      'path': path,
+      'createdAt': createdAt.toIso8601String(),
+      'isUploaded': isUploaded,
+    };
+  }
+
+  LocalFile copyWith({bool? isUploaded}) {
+    return LocalFile(
+      name: name,
+      path: path,
+      createdAt: createdAt,
+      isUploaded: isUploaded ?? this.isUploaded,
+    );
+  }
+}
+
+class ServerFile {
+  final String name;
+  final bool existsLocally;
+
+  ServerFile({
+    required this.name,
+    this.existsLocally = false,
+  });
 }

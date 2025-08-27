@@ -78,6 +78,23 @@ class ConfigService {
     // Always try to configure the backend with our local config
     await _configureBackend(config);
   }
+  
+  Future<Map<String, bool>> testConnections() async {
+    try {
+      final response = await _dio.get('$baseUrl/status');
+      if (response.statusCode == 200) {
+        final status = response.data;
+        return {
+          'backend': status['backend_running'] ?? false,
+          'youtube': status['youtube_api_configured'] ?? false,
+          'ftp': status['ftp_configured'] ?? false,
+        };
+      }
+    } catch (e) {
+      print('❌ Connection test failed: $e');
+    }
+    return {'backend': false, 'youtube': false, 'ftp': false};
+  }
 
   Future<AppConfig?> _loadFromPreferences() async {
     final prefs = await SharedPreferences.getInstance();

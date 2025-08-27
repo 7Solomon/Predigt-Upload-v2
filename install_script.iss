@@ -6,10 +6,12 @@
 #define MyAppVersion "1.0"
 #define MyAppExeName "predigt_upload_v2.exe"
 #define MyBackendDir "backend"
+#define MyAppPublisher "Your Company Name"
+#define MyAppURL "https://yourcompany.com"
 
 [Setup]
 ; Basic application and installer settings
-AppId={{AUTO}}
+AppId={{B8E5F8C1-2A3D-4E5F-9B7C-1D2E3F4A5B6C}}
 AppName={#MyAppName}
 AppVersion={#MyAppVersion}
 AppPublisher={#MyAppPublisher}
@@ -22,6 +24,9 @@ OutputBaseFilename=predigt_uploader_setup
 Compression=lzma
 SolidCompression=yes
 WizardStyle=modern
+PrivilegesRequired=lowest
+ArchitecturesAllowed=x64
+ArchitecturesInstallIn64BitMode=x64
 
 [Languages]
 Name: "english"; MessagesFile: "compiler:Default.isl"
@@ -34,13 +39,18 @@ Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{
 [Files]
 ; This section defines which files to include in the installer.
 ; It copies the compiled Flutter application and the backend folder.
-Source: "build\windows\runner\Release\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
+Source: "build\windows\x64\runner\Release\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
 Source: "{#MyBackendDir}\*"; DestDir: "{app}\backend"; Flags: ignoreversion recursesubdirs createallsubdirs
+; Copy the setup script to the backend directory
+Source: "setup_backend.ps1"; DestDir: "{app}\backend"; Flags: ignoreversion
+; Copy a wrapper script for the main exe
+Source: "app_wrapper.bat"; DestDir: "{app}"; Flags: ignoreversion
 
 [Icons]
 ; Creates Start Menu and Desktop icons for the application.
-Name: "{autoprograms}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"
-Name: "{autodesktop}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; Tasks: desktopicon
+; Use the wrapper script instead of direct exe
+Name: "{autoprograms}\{#MyAppName}"; Filename: "{app}\app_wrapper.bat"
+Name: "{autodesktop}\{#MyAppName}"; Filename: "{app}\app_wrapper.bat"; Tasks: desktopicon
 
 [Run]
 ; This section executes commands during or after the installation.
@@ -48,7 +58,15 @@ Name: "{autodesktop}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; Tasks: de
 Filename: "{win}\System32\WindowsPowerShell\v1.0\powershell.exe"; \
     Parameters: "-ExecutionPolicy Bypass -File ""{app}\backend\setup_backend.ps1"""; \
     WorkingDir: "{app}\backend"; \
-    Flags: runhidden waituntilterminated
+    Flags: runhidden waituntilterminated; \
+    StatusMsg: "Setting up Python backend environment..."
 
 ; This command gives the user the option to launch the application after the installation is finished.
-Filename: "{app}\{#MyAppExeName}"; Description: "{cm:LaunchProgram,{#StringChange(MyAppName, '&', '&&')}}"; Flags: nowait postinstall skipifsilent
+Filename: "{app}\app_wrapper.bat"; Description: "{cm:LaunchProgram,{#StringChange(MyAppName, '&', '&&')}}"; Flags: nowait postinstall skipifsilent
+
+[UninstallRun]
+; Stop the backend when uninstalling
+Filename: "{win}\System32\WindowsPowerShell\v1.0\powershell.exe"; \
+    Parameters: "-ExecutionPolicy Bypass -File ""{app}\backend\stop_backend.ps1"""; \
+    WorkingDir: "{app}\backend"; \
+    Flags: runhidden

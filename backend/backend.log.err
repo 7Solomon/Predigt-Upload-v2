@@ -1,8 +1,0 @@
-2025-08-21 20:33:19,368 - INFO - Config file not found at C:\Users\Johan\Documents\programme\predigt_upload_v2\backend\config.json, using defaults
-2025-08-21 20:33:19,372 - INFO - Created default config file at C:\Users\Johan\Documents\programme\predigt_upload_v2\backend\config.json
-INFO:     Started server process [19948]
-INFO:     Waiting for application startup.
-INFO:     Application startup complete.
-INFO:     Uvicorn running on http://127.0.0.1:8000 (Press CTRL+C to quit)
-2025-08-21 20:33:28,176 - INFO - \u2705 Complete configuration setup successful
-2025-08-21 20:33:28,329 - INFO - file_cache is only supported with oauth2client<4.0.0

@@ -1,4 +1,7 @@
+import 'dart:ui';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:predigt_upload_v2/services/processed_file_service.dart';
 import '../models/models.dart';
 import '../services/config_services.dart';
 import '../services/python_service.dart';
@@ -77,31 +80,43 @@ class AudioProcessingState {
 }
 
 class AudioProcessingNotifier extends StateNotifier<AudioProcessingState> {
-  AudioProcessingNotifier() : super(AudioProcessingState.initial());
+  final PythonService _pythonService = PythonService();
+  final Ref ref;
 
+  AudioProcessingNotifier(this.ref) : super(AudioProcessingState.initial());
   Future<void> startProcessing(ProcessingRequest request) async {
-    if (state.isProcessing) return;
-    state = state.copyWith(isProcessing: true, statusMessage: 'Starte Download...');
-    // Placeholder simulated progression
-    final steps = [
-      (ProcessingStep.download, 20.0, 'Download abgeschlossen'),
-      (ProcessingStep.compress, 60.0, 'Komprimierung abgeschlossen'),
-      (ProcessingStep.tags, 80.0, 'Tags gesetzt'),
-      (ProcessingStep.finalize, 90.0, 'Finalisierung...'),
-      (ProcessingStep.complete, 100.0, 'Abgeschlossen'),
-    ];
-    for (final s in steps) {
-      await Future.delayed(const Duration(milliseconds: 500));
+    state = state.copyWith(isProcessing: true);
+    
+    await for (final progress in _pythonService.processAudio(request)) {
       state = state.copyWith(
-        currentStep: s.$1,
-        progress: s.$2,
-        statusMessage: s.$3,
-        isProcessing: s.$1 != ProcessingStep.complete,
+        currentStep: progress.step,
+        progress: progress.progress,
+        statusMessage: progress.message,
       );
+      
+      // Handle completion and trigger navigation
+      if (progress.step == ProcessingStep.complete) {
+        state = state.copyWith(isProcessing: false);
+        
+        // Trigger navigation callback if set
+        final navigationCallback = ref.read(navigationCallbackProvider);
+        if (navigationCallback != null) {
+          navigationCallback();
+        }
+        break;
+      }
+      
+      if (progress.step == ProcessingStep.error) {
+        state = state.copyWith(isProcessing: false);
+        break;
+      }
     }
   }
 }
 
-final audioProcessingProvider = StateNotifierProvider<AudioProcessingNotifier, AudioProcessingState>((ref) {
-  return AudioProcessingNotifier();
-});
+// Add a provider for navigation callback
+final navigationCallbackProvider = StateProvider<VoidCallback?>((ref) => null);
+
+final audioProcessingProvider = StateNotifierProvider<AudioProcessingNotifier, AudioProcessingState>(
+  (ref) => AudioProcessingNotifier(ref),
+);

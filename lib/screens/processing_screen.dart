@@ -9,9 +9,10 @@ class ProcessingScreen extends ConsumerStatefulWidget {
   final Livestream livestream;
   final String prediger;
   final String titel;
+
   final DateTime datum;
   
-  const ProcessingScreen({
+  const ProcessingScreen({super.key, 
     required this.livestream,
     required this.prediger,
     required this.titel,
@@ -35,11 +36,10 @@ class _ProcessingScreenState extends ConsumerState<ProcessingScreen>
       duration: const Duration(seconds: 2),
     )..repeat();
     
-    // Start processing immediately
     WidgetsBinding.instance.addPostFrameCallback((_) {
       ref.read(audioProcessingProvider.notifier).startProcessing(
         ProcessingRequest(
-          url: widget.livestream.url,
+          id: widget.livestream.id,
           prediger: widget.prediger,
           titel: widget.titel,
           datum: widget.datum,
@@ -47,6 +47,13 @@ class _ProcessingScreenState extends ConsumerState<ProcessingScreen>
       );
     });
   }
+
+  @override
+  void dispose() {
+    _animationController.dispose();
+    super.dispose();
+  }
+
   
   @override
   Widget build(BuildContext context) {
@@ -130,6 +137,7 @@ class _ProcessingScreenState extends ConsumerState<ProcessingScreen>
         ProcessingStep.tags => Icons.tag,
         ProcessingStep.finalize => Icons.build,
         ProcessingStep.complete => Icons.check_circle,
+        ProcessingStep.error => Icons.error,
       };
 
   Color _getStatusColor(ProcessingStep step) => switch (step) {
@@ -138,5 +146,6 @@ class _ProcessingScreenState extends ConsumerState<ProcessingScreen>
         ProcessingStep.tags => Colors.purple,
         ProcessingStep.finalize => Colors.teal,
         ProcessingStep.complete => Colors.green,
+        ProcessingStep.error => Colors.red,
       };
 }
