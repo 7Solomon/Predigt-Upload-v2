@@ -2,7 +2,7 @@
 ; This script creates a Windows installer for the Predigt Uploader application.
 ; It bundles the Flutter application and the Python backend, and runs the backend setup script during installation.
 
-#define MyAppName "Predigt Uploader"
+#define MyAppName "Predigt-Upload"
 #define MyAppVersion "1.0"
 #define MyAppExeName "predigt_upload_v2.exe"
 #define MyBackendDir "backend"
