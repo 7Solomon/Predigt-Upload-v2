@@ -95,6 +95,7 @@ class PythonService {
       final response = await _dio.post('$baseUrl/server/upload', data: {
         'file_path': filePath,
       });
+      print('Upload response: ${response.statusCode} ${response.data}');
       return response.statusCode == 200 && response.data['status'] == 'success';
     } catch (e) {
       print('Error uploading file: $e');

@@ -1,6 +1,7 @@
 from datetime import datetime
 import os
 import ftplib
+import re
 import requests
 import logging
 from bs4 import BeautifulSoup 
@@ -48,34 +49,38 @@ def list_files_on_server():
     server = CONFIG.get('server')
     name = CONFIG.get('name')
     password = CONFIG.get('password')
-
-    #logging.error(f"Connecting to FTP server: {server} with user: {name}, and password: {password}")
     try:
         session = ftplib.FTP(server, name, password)
         files = session.nlst()
         session.quit()
-        
+
         actual_files = [f for f in files if f not in ['.', '..', '.empty']]
+
+        date_regexes = [
+            re.compile(r'^predigt-(\d{4}-\d{2}-\d{2})_'),          # predigt-YYYY-MM-DD_
+            re.compile(r'^(\d{4}-\d{2}-\d{2})\s*-'),               # YYYY-MM-DD - 
+        ]
+
         def extract_date_from_filename(filename):
-            try:
-                # Extract date part (format: YYYY-MM-DD)
-                date_part = filename.split(' - ')[0]
-                return datetime.strptime(date_part, '%Y-%m-%d')
-            except (ValueError, IndexError):
-                # If date parsing fails, return a very old date so it goes to the end
-                return datetime(1900, 1, 1)
+            for rx in date_regexes:
+                m = rx.search(filename)
+                if m:
+                    try:
+                        return datetime.strptime(m.group(1), '%Y-%m-%d')
+                    except ValueError:
+                        pass
+            return datetime(1900, 1, 1)
+
         sorted_files = sorted(
-            actual_files, 
-            key=extract_date_from_filename, 
-            reverse=True 
-        )[:15]  
-        
-        
-        #logging.info(f"files on server: {sorted_files}")
+            actual_files,
+            key=extract_date_from_filename,
+            reverse=True
+        )[:15]
+
         return sorted_files
     except ftplib.all_errors as e:
         logging.error(f"Error listing files on server: {e}")
-        raise
+        return []
        
 
 def get_themes_of_predigten():

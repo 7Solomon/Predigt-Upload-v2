@@ -16,6 +16,7 @@ class _OverviewScreenState extends State<OverviewScreen> with TickerProviderStat
   List<String> serverFiles = [];
   bool isLoadingServer = false;
   late TabController _tabController;
+  final Set<String> _uploading = {}; // <-- add
 
   @override
   void initState() {
@@ -51,17 +52,23 @@ class _OverviewScreenState extends State<OverviewScreen> with TickerProviderStat
   }
 
   Future<void> _uploadToServer(ProcessedFile file) async {
+    if (_uploading.contains(file.path)) return; 
+    setState(() => _uploading.add(file.path));  
     try {
       final success = await _pythonService.uploadFile(file.path);
       if (success) {
         _processedFilesService.markAsUploaded(file.path);
         _showSuccessSnackBar('Datei erfolgreich hochgeladen');
-        _loadServerFiles(); // Refresh server files
+        _loadServerFiles();
       } else {
         _showErrorSnackBar('Fehler beim Hochladen der Datei');
       }
     } catch (e) {
       _showErrorSnackBar('Fehler beim Hochladen: $e');
+    } finally {
+      if (mounted) {
+        setState(() => _uploading.remove(file.path));
+      }
     }
   }
 
@@ -129,14 +136,22 @@ class _OverviewScreenState extends State<OverviewScreen> with TickerProviderStat
           subtitle: Text(
             file.isUploadedToServer 
               ? 'Hochgeladen • ${_formatDateTime(file.processedAt)}'
-              : 'Bereit zum Hochladen • ${_formatDateTime(file.processedAt)}',
+              : (_uploading.contains(file.path)
+                  ? 'Wird hochgeladen...'
+                  : 'Bereit zum Hochladen • ${_formatDateTime(file.processedAt)}'),
           ),
-          trailing: file.isUploadedToServer 
-            ? null 
-            : IconButton(
-                icon: const Icon(Icons.cloud_upload),
-                onPressed: () => _uploadToServer(file),
-              ),
+          trailing: file.isUploadedToServer
+              ? null
+              : (_uploading.contains(file.path)
+                  ? const SizedBox(
+                      width: 24,
+                      height: 24,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : IconButton(
+                      icon: const Icon(Icons.cloud_upload),
+                      onPressed: () => _uploadToServer(file),
+                    )),
         );
       },
     );

@@ -6,6 +6,7 @@ import pathlib
 from typing import Dict, Any, AsyncGenerator
 import logging
 import os
+import shutil  # <-- add
 from logging.handlers import RotatingFileHandler
 
 from fastapi import FastAPI
@@ -307,22 +308,26 @@ async def process_audio_stream(req: ProcessAudioRequest):
                     yield json.dumps(update) + "\n"
 
                 # 4. Rename
-                final_name = f"{req.datum.strftime('%Y-%m-%d')} - {req.titel}.mp3"
+                final_name = f"predigt-{req.datum.strftime('%Y-%m-%d')}_Treffpunkt_Leben_Karlsruhe.mp3"
                 yield json.dumps({"step": "finalize", "status": "in_progress", "progress": "90", "message": f"Renaming file to {final_name}..."}) + "\n"
                 final_path = await asyncio.to_thread(download.rename_file, str(compressed_path), final_name)
-                
+
+                # Move file to persistent location so it still exists for /server/upload
+                persistent_dir = pathlib.Path(__file__).parent / "processed_files"
+                persistent_dir.mkdir(exist_ok=True)
+                persistent_final_path = persistent_dir / final_name
+                await asyncio.to_thread(shutil.move, final_path, persistent_final_path)
+
                 yield json.dumps({
-                    "step": "complete", 
-                    "status": "completed", 
+                    "step": "complete",
+                    "status": "completed",
                     "progress": "100",
                     "message": "Verarbeitung abgeschlossen!",
-                    "final_path": final_path
+                    "final_path": str(persistent_final_path)  # return persistent path
                 }) + "\n"
-
             except Exception as e:
                 logging.error(f"Error in processing stream: {e}", exc_info=True)
                 yield json.dumps({"step": "error", "status": "failed", "message": f"Ein Fehler ist aufgetreten: {e}"}) + "\n"
-
     return StreamingResponse(processing_generator(), media_type="application/x-ndjson")
 
 @app.post("/server/upload")
@@ -330,59 +335,63 @@ async def upload_file_to_server(req: UploadFileRequest):
     """Upload a file to the FTP server with proper renaming."""
     try:
         logging.info(f"Uploading file to server: {req.file_path}")
-        
-        # Check if file exists locally first
-        if not pathlib.Path(req.file_path).exists():
-            return {
-                "status": "error", 
-                "message": f"File not found: {req.file_path}"
-            }
-        
-        # Extract date from the original filename (format: YYYY-MM-DD - Title.mp3)
-        original_filename = pathlib.Path(req.file_path).name
-        try:
-            # Extract date part before the first " - "
-            date_part = original_filename.split(' - ')[0]
-            # Validate date format
-            dt.datetime.strptime(date_part, '%Y-%m-%d')
-            datum = date_part
-        except (ValueError, IndexError):
-            return {
-                "status": "error", 
-                "message": f"Could not extract valid date from filename: {original_filename}"
-            }
-        
-        # Create new filename with the required structure
-        new_filename = f"predigt-{datum}_Treffpunkt_Leben_Karlsruhe.mp3"
-        
-        # 1. First: Rename the file locally (in temp directory)
-        temp_dir = pathlib.Path(req.file_path).parent
-        new_file_path = temp_dir / new_filename
-        
-        # Rename the file locally
-        pathlib.Path(req.file_path).rename(new_file_path)
-        logging.info(f"File renamed locally from {req.file_path} to {new_file_path}")
-        
-        # 2. Second: Upload the renamed file to server
-        await asyncio.to_thread(server_interact.send_file_to_server, str(new_file_path))
-        logging.info(f"File uploaded to server: {new_filename}")
-        
-        # 3. Third: Send update request
+
+        src_path = pathlib.Path(req.file_path)
+
+        if not src_path.exists():
+            return {"status": "error", "message": f"File not found: {req.file_path}"}
+
+        original_filename = src_path.name
+
+        def already_final(name: str) -> bool:
+            return name.startswith("predigt-") and name.endswith("_Treffpunkt_Leben_Karlsruhe.mp3")
+
+        if already_final(original_filename):
+            file_to_upload = src_path
+            logging.info("File already in final upload naming scheme. Skipping rename.")
+        else:
+            try:
+                date_part = original_filename.split(' - ')[0]
+                dt.datetime.strptime(date_part, '%Y-%m-%d')
+                datum = date_part
+            except (ValueError, IndexError):
+                return {
+                    "status": "error",
+                    "message": f"Could not extract valid date from filename: {original_filename}"
+                }
+
+            new_filename = f"predigt-{datum}_Treffpunkt_Leben_Karlsruhe.mp3"
+            new_file_path = src_path.parent / new_filename
+
+            if new_file_path.exists():
+                logging.warning(f"Target file {new_file_path} already exists. Overwriting.")
+                try:
+                    new_file_path.unlink()
+                except Exception as del_err:
+                    return {
+                        "status": "error",
+                        "message": f"Cannot overwrite existing target file: {del_err}"
+                    }
+
+            src_path.rename(new_file_path)
+            logging.info(f"File renamed locally from {src_path} to {new_file_path}")
+            file_to_upload = new_file_path
+
+        await asyncio.to_thread(server_interact.send_file_to_server, str(file_to_upload))
+        logging.info(f"File uploaded to server: {file_to_upload.name}")
+
         await asyncio.to_thread(server_interact.send_update_request)
         logging.info("Update request sent to server")
-        
+
         return {
-            "status": "success", 
-            "message": f"File uploaded successfully as: {new_filename}",
-            "uploaded_filename": new_filename
+            "status": "success",
+            "message": f"File uploaded successfully as: {file_to_upload.name}",
+            "uploaded_filename": file_to_upload.name
         }
-    
+
     except Exception as e:
-        logging.error(f"Error uploading file to server: {e}")
-        return {
-            "status": "error", 
-            "message": f"Upload failed: {str(e)}"
-        }
+        logging.error(f"Error uploading file to server: {e}", exc_info=True)
+        return {"status": "error", "message": f"Upload failed: {str(e)}"}
 
 @app.post("/server/check-file")
 async def check_file_on_server(req: UploadFileRequest):
